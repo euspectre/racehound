@@ -503,8 +503,25 @@ destroy_swbp(struct kref *kref)
 }
 /* ====================================================================== */
 
-/* This is similar to how KASAN uses stackdepot in the kernel 4.12. */
-static depot_stack_handle_t save_stack(void)
+static bool is_rh_code(unsigned long addr)
+{
+	unsigned long start = (unsigned long)module_core_addr(THIS_MODULE);
+
+	return (addr >= start && addr < start + core_text_size(THIS_MODULE));
+}
+
+/*
+ * This is similar to how KASAN uses stackdepot in the kernel 4.12, except
+ * RaceHound-specific filtering.
+ *
+ * If filter_rh is true the trace will start after the last stack entry that
+ * corresponds to racehound.ko, i.e. that entry and the higher ones will be
+ * skipped. May be convenient when reporting SW BP hits.
+ *
+ * If top_addr is non-zero, the stack trace will start from the entry with
+ * that value. May be convenient when reporting HW BP hits.
+ */
+static depot_stack_handle_t save_stack(bool filter_rh, unsigned long top_addr)
 {
 	unsigned long entries[RH_STACK_DEPTH];
 	struct stack_trace trace = {
@@ -518,6 +535,37 @@ static depot_stack_handle_t save_stack(void)
 	if (trace.nr_entries != 0 &&
 	    trace.entries[trace.nr_entries-1] == ULONG_MAX)
 		trace.nr_entries--;
+
+	if (filter_rh) {
+		unsigned int nr = trace.nr_entries;
+
+		trace.nr_entries = 0;
+		while (nr != 0) {
+			if (is_rh_code(entries[nr - 1]))
+				break;
+			++trace.nr_entries;
+			--nr;
+		}
+
+		if (!trace.nr_entries)
+			return 0;
+
+		trace.entries = &entries[nr];
+	}
+
+	if (top_addr) {
+		unsigned int i;
+
+		for (i = 0; i < trace.nr_entries; ++i) {
+			if (entries[i] == top_addr)
+				break;
+		}
+
+		if (i < trace.nr_entries) {
+			trace.nr_entries -= i;
+			trace.entries = &entries[i];
+		}
+	}
 
 	return depot_save_stack(&trace, GFP_ATOMIC);
 }
@@ -1371,7 +1419,7 @@ hwbp_handler(struct perf_event *event, struct perf_sample_data *data,
 	breakinfo[i].comm[TASK_COMM_LEN - 1] = 0;
 	breakinfo[i].ip0 = (unsigned long)breakinfo[i].swbp_hit->swbp->kp.addr;
 	breakinfo[i].ip1 = regs->ip;
-	breakinfo[i].st = save_stack();
+	breakinfo[i].st = save_stack(false, regs->ip);
 	breakinfo[i].race_found = 1;
 	atomic_inc(&race_counter);
 
@@ -1627,7 +1675,7 @@ queue_hwbp_race_report(struct hwbp *hwbp)
 		return;
 	}
 
-	st = save_stack();
+	st = save_stack(true, 0);
 	if (!st) {
 		pr_info(RH_MSG_PREFIX "Failed to to save the stack trace of the thread that hit the SW BP.\n");
 		return;
@@ -2112,7 +2160,7 @@ queue_rr_race_report(unsigned long ip, unsigned long addr, unsigned int size)
 	struct rh_race *race;
 	depot_stack_handle_t st;
 
-	st = save_stack();
+	st = save_stack(true, 0);
 	if (!st) {
 		pr_info(RH_MSG_PREFIX "Failed to to save the stack trace of the thread that hit the SW BP.\n");
 		return;
