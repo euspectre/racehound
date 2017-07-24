@@ -263,16 +263,12 @@ code written in assembly). lines2insns will translate it to the list of
 locations in the binary code. See ma_lines/Readme.txt.
 
 The kernel part of RaceHound provides info about which software breakpoints
-have been hit and which races have been found. It is available via
-/sys/kernel/debug/racehound/events file. Poll/select can be used for that
-file to wait till the events are available there. The events can then be
-read, one per line.
+have been hit. It is available via /sys/kernel/debug/racehound/events file.
+Poll/select can be used for that file to wait till the events are available
+there. The events can then be read, one per line.
 
 The format for the "BP hit" events is the same as used for
 racehound/breakpoints file, see above.
-
-For the found races, the corresponding event lines are prefixed with
-"[race]".
 
 An example that demonstrates the usage of this API is also provided:
 https://github.com/euspectre/racehound/blob/master/examples/events.py
