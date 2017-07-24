@@ -762,8 +762,8 @@ decode_and_filter(unsigned int offset, Elf_Data *data, SectionInfo &si,
  * addresses from other sections (that is not considered an error).
  * The debug info contains absolute addresses in this case.
  *
- * For the modules, it checks all code sections and throws if does not find
- * a suitable one. The addresses in the debug info are relative there. */
+ * For the modules, it checks all code sections.
+ * The addresses in the debug info are relative there. */
 static GElf_Word
 get_section_and_offset(Dwarf_Addr addr, unsigned int &offset,
 		       const string &msg_prefix)
@@ -809,9 +809,7 @@ get_section_and_offset(Dwarf_Addr addr, unsigned int &offset,
 		}
 	}
 
-	throw runtime_error(
-		msg_prefix + "failed to find the name of the ELF section");
-	return -1; /* unreachable */
+	return -1;
 }
 
 static void
