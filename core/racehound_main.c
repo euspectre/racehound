@@ -1725,7 +1725,7 @@ hwbp_clear(int breakno)
 	breakinfo[breakno].swbp_hit = NULL;
 
 	if (!breakinfo[breakno].usage_count) {
-		pr_info(RH_MSG_PREFIX "The BP has already been disabled.\n");
+		pr_debug(RH_MSG_PREFIX "The BP has already been disabled.\n");
 		goto out;
 	}
 
