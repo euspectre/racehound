@@ -232,8 +232,13 @@ if __name__ == '__main__':
                         bp = line.rstrip()
                         if verbose:
                             print('BP hit:', bp)
-                        hits = hits + 1
-                        replace_bp(bp, bps, hit_rate)
+                        # When we have removed a BP, we may still receive
+                        # some hit events for it after that, because the
+                        # events are reported asynchronously by the kernel
+                        # module. Let us ignore these additional events.
+                        if bps[bp]:
+                            hits = hits + 1
+                            replace_bp(bp, bps, hit_rate)
 
                 elapsed = (datetime.utcnow() - start_time).total_seconds()
                 if elapsed >= HIT_CHECK_INTERVAL:
