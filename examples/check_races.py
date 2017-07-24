@@ -103,6 +103,7 @@ def place_bp(bp, bps):
         del bps[bp]
         if not bps:
             sys.stderr.write('No valid breakpoints remain, exiting.\n')
+            clear_bps()
             sys.exit(1)
 
 def remove_bp(bp):
@@ -131,6 +132,16 @@ def replace_bp(bp, bps, hit_rate):
     # The same BP has a chance to be chosen again, which is OK.
     add_bps(1, bps)
 
+def clear_bps():
+    '''Tell RaceHound to remove all currently set BPs.'''
+    try:
+        with open(BPS_FILE, 'w') as f:
+            f.write('clear\n')
+        if verbose:
+            print('Cleared the BPs.')
+    except OSError as err:
+        sys.stderr.write(
+            'Failed to clear the breakpoints: {0}\n'.format(err))
 
 def add_bps(num, bps):
     '''Select the given number of BPs randomly and try to set them.'''
@@ -211,6 +222,8 @@ if __name__ == '__main__':
             sys.stderr.write('\n')
             sys.exit(1)
 
+    clear_bps()
+
     sel = selectors.DefaultSelector()
     with open(EVENTS_FILE, 'r') as f:
         sel.register(f, selectors.EVENT_READ)
@@ -252,4 +265,5 @@ if __name__ == '__main__':
                     hits = 0
 
         except KeyboardInterrupt:
+            clear_bps()
             sys.exit(1)
