@@ -1331,9 +1331,6 @@ static struct hwbp {
 	 * handler should do nothing even if it triggers. */
 	struct swbp_hit *swbp_hit;
 
-	/* How many CPUs are currently using this BP. */
-	int usage_count;
-
 	/* Maximum time (in jiffies) when it makes sense to set the HW BP.
 	 * The timer functions that set the BP on different processors
 	 * should check it. */
@@ -1427,6 +1424,25 @@ out:
 	spin_unlock_irqrestore(&hwbp_lock, flags);
 }
 
+/*
+ * True if the HW BP is not used by any of the online CPUs, false if it is
+ * used by one or more CPUs.
+ * The caller must hold hwbp_lock.
+ */
+static bool
+hwbp_unused(const struct hwbp *bp)
+{
+	int cpu;
+	struct perf_event **pevent;
+
+	for_each_online_cpu(cpu) {
+		pevent = per_cpu_ptr(bp->pev, cpu);
+		if (!pevent[0]->attr.disabled)
+			return false;
+	}
+	return true;
+}
+
 /* Set the HW BP on the current CPU.
  * The caller must hold hwbp_lock.
  * Do not call this function for an already set BP. */
@@ -1443,7 +1459,6 @@ hwbp_set_impl(struct hwbp *bp)
 
 	if (time_after(jiffies, bp->max_time)) {
 		pevent[0]->attr.disabled = 1;
-		--bp->usage_count;
 		/* Failed to set HW BP in the given time span. This may
 		 * happen, for example, if the timer function that calls
 		 * hwbp_set_impl() ran too late. Not an error. */
@@ -1466,8 +1481,8 @@ hwbp_set_impl(struct hwbp *bp)
 	ret = do_arch_install_hwbp(pevent[0]);
 	if (ret != 0) {
 		pevent[0]->attr.disabled = 1;
-		--bp->usage_count;
-		pr_warning(RH_MSG_PREFIX "Failed to set the HW BP, errno: %d.\n",
+		pr_warning(RH_MSG_PREFIX
+			   "Failed to set the HW BP, errno: %d.\n",
 			   ret);
 	}
 	return ret;
@@ -1555,14 +1570,14 @@ hwbp_set(unsigned long addr, int len, int type, unsigned long max_delay,
 	spin_lock_irqsave(&hwbp_lock, flags);
 
 	for (i = 0; i < HBP_NUM; i++)
-		if (!breakinfo[i].usage_count)
+		if (hwbp_unused(&breakinfo[i]))
 			break;
 	if (i == HBP_NUM) {
 		/* pr_debug() only because it is possible for such
 		 * conditions to occur at a fast rate, e.g., on repetitive
 		 * accesses to the same data. */
-		pr_debug(
-RH_MSG_PREFIX "Unable to set a HW BP: all breakpoints are already in use.\n");
+		pr_debug(RH_MSG_PREFIX
+			 "Unable to set a HW BP: all breakpoints are already in use.\n");
 		ret = -EBUSY;
 		goto out;
 	}
@@ -1583,10 +1598,8 @@ RH_MSG_PREFIX "Unable to set a HW BP: all breakpoints are already in use.\n");
 	breakinfo[i].type = type;
 	breakinfo[i].max_time = jiffies + max_delay;
 
-	++breakinfo[i].usage_count;
 	ret = hwbp_set_impl(&breakinfo[i]);
 	if (ret != 0) {
-		--breakinfo[i].usage_count;
 		goto out;
 	}
 
@@ -1598,9 +1611,6 @@ RH_MSG_PREFIX "Unable to set a HW BP: all breakpoints are already in use.\n");
 
 		pevent = per_cpu_ptr(breakinfo[i].pev, cpu);
 		pevent[0]->attr.disabled = 0;
-
-		++breakinfo[i].usage_count;
-
 		t = per_cpu_ptr(breakinfo[i].timers_set, cpu);
 		t->data = (unsigned long)&breakinfo[i];
 		t->expires = jiffies;
@@ -1656,7 +1666,6 @@ hwbp_clear_impl(struct hwbp *bp)
 		pevent[0]->attr.bp_addr = placeholder_addr;
 	}
 	pevent[0]->attr.disabled = 1;
-	--bp->usage_count;
 	return;
 }
 
@@ -1724,8 +1733,8 @@ hwbp_clear(int breakno)
 	spin_lock_irqsave(&hwbp_lock, flags);
 	breakinfo[breakno].swbp_hit = NULL;
 
-	if (!breakinfo[breakno].usage_count) {
-		pr_debug(RH_MSG_PREFIX "The BP has already been disabled.\n");
+	if (hwbp_unused(&breakinfo[breakno])) {
+		pr_debug(RH_MSG_PREFIX "The BP has already been cleared.\n");
 		goto out;
 	}
 
@@ -1757,10 +1766,7 @@ hwbp_clear(int breakno)
 		 *    a no-op as a result. */
 		if (was_pending) {
 			pevent = per_cpu_ptr(breakinfo[breakno].pev, cpu);
-			if (!pevent[0]->attr.disabled) {
-				pevent[0]->attr.disabled = 1;
-				--breakinfo[breakno].usage_count;
-			}
+			pevent[0]->attr.disabled = 1;
 			continue;
 		}
 
