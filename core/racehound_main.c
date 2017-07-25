@@ -1768,6 +1768,8 @@ hwbp_clear(int breakno)
 		else {
 			t = per_cpu_ptr(
 				breakinfo[breakno].timers_clear, cpu);
+			/* Just in case the "clear" timer is still pending. */
+			del_timer(t);
 			t->data = (unsigned long)&breakinfo[breakno];
 			t->expires = jiffies;
 			add_timer_on(t, cpu);
