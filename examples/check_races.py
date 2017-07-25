@@ -243,13 +243,13 @@ if __name__ == '__main__':
                 for key, mask in events:
                     for line in f:
                         bp = line.rstrip()
-                        if verbose:
-                            print('BP hit:', bp)
                         # When we have removed a BP, we may still receive
                         # some hit events for it after that, because the
                         # events are reported asynchronously by the kernel
                         # module. Let us ignore these additional events.
                         if bps[bp]:
+                            if verbose:
+                                print('BP hit:', bp)
                             hits = hits + 1
                             replace_bp(bp, bps, hit_rate)
 
