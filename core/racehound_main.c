@@ -1757,8 +1757,10 @@ hwbp_clear(int breakno)
 		 *    a no-op as a result. */
 		if (was_pending) {
 			pevent = per_cpu_ptr(breakinfo[breakno].pev, cpu);
-			pevent[0]->attr.disabled = 1;
-			--breakinfo[breakno].usage_count;
+			if (!pevent[0]->attr.disabled) {
+				pevent[0]->attr.disabled = 1;
+				--breakinfo[breakno].usage_count;
+			}
 			continue;
 		}
 
