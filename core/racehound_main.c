@@ -741,8 +741,10 @@ report_swbp_hit_event(struct event_buffer *e, const char *str_swbp)
 	BUG_ON(str_swbp == NULL);
 
 	spin_lock_irqsave(&event_producer_lock, flags);
-	head = e->head; /* The producer controls 'head' index. */
-	tail = ACCESS_ONCE(e->tail);
+	/* The producer controls 'head' index. */
+	head = e->head;
+	/* Paired with smp_store_release() in events_file_read(). */
+	tail = smp_load_acquire(&e->tail);
 
 	if (CIRC_SPACE(head, tail, RH_MAX_EVENTS_STORED) < 1) {
 		/* no space left, discard the event */
@@ -758,6 +760,7 @@ report_swbp_hit_event(struct event_buffer *e, const char *str_swbp)
 	}
 
 	e->buf[head] = str;
+	/* Paired with smp_load_acquire() in events_file_read(). */
 	smp_store_release(&e->head, (head + 1) & (RH_MAX_EVENTS_STORED - 1));
 
 	/* Documentation/circular-buffers.txt:
