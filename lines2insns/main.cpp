@@ -829,10 +829,33 @@ find_insns(Elf *e, string src_file, int line, EAccessType at)
 		&lines, &nlines);
 
 	if (ret != 0) {
-		if (verbose) {
-			cerr << prefix << "no data found." << endl;
+		/* Try the base name of the file, if it is different
+		 * from the given name. */
+		size_t pos = src_file.find_last_of("/");
+		if (pos == string::npos) {
+			return;
 		}
-		return;
+		string basename = src_file.substr(pos + 1);
+		if (basename.empty()) {
+			return;
+		}
+
+		if (verbose) {
+			cerr << prefix
+				<< "no data found, looking for data for "
+				<< basename << "..." << endl;
+		}
+		ret = dwfl_module_getsrc_file(
+			wr_dwfl.dwfl_mod, basename.c_str(), line, col,
+			&lines, &nlines);
+		if (ret != 0) {
+			if (verbose) {
+				cerr << prefix << "no data found for "
+					<< basename << " either."
+					<< endl;
+			}
+			return;
+		}
 	}
 
 	for (size_t inner = 0; inner < nlines; ++inner) {
