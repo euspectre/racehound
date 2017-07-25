@@ -1615,6 +1615,8 @@ hwbp_set(unsigned long addr, int len, int type, unsigned long max_delay,
 		pevent = per_cpu_ptr(breakinfo[i].pev, cpu);
 		pevent[0]->attr.disabled = 0;
 		t = per_cpu_ptr(breakinfo[i].timers_set, cpu);
+		/* Just in case the "set" timer is still pending. */
+		del_timer(t);
 		t->data = (unsigned long)&breakinfo[i];
 		t->expires = jiffies;
 
