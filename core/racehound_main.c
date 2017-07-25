@@ -671,7 +671,7 @@ do_report_race_work(struct work_struct *work)
  * and shown in "events" file. Must be a power of 2.
  *
  * See also: Documentation/circular-buffers.txt. */
-#define RH_MAX_EVENTS_STORED 512
+#define RH_MAX_EVENTS_STORED 4096
 struct event_buffer {
 	unsigned int head; /* new data are put here */
 	unsigned int tail; /* the data are read from here */
