@@ -2235,6 +2235,9 @@ rh_do_before_insn(void)
 	int race_found;
 	unsigned long actual_delay = swbp_hit->swbp->delay;
 
+	/* Let the user space know the SW BP was hit and processed. */
+	report_swbp_hit_event(&events, swbp_to_string(swbp_hit->swbp));
+
 	if (!actual_delay)
 		actual_delay = (in_atomic() ? delay_in_atomic : delay);
 
@@ -2308,8 +2311,6 @@ rh_do_before_insn(void)
 		atomic_inc(&race_counter);
 	}
 
-	/* Let the user space know the SW BP was hit and processed. */
-	report_swbp_hit_event(&events, swbp_to_string(swbp_hit->swbp));
 out:
 	/* Let the copied insn in the Kprobe's slot execute now. */
 	return (unsigned long)swbp_hit->swbp->kp.ainsn.insn;
