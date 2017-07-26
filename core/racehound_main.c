@@ -3144,8 +3144,6 @@ rh_module_exit(void)
 	event_buffer_destroy(&events);
 	cleanup_race_table();
 	depot_cleanup();
-
-	pr_info(RH_MSG_PREFIX "RaceHound has been unloaded.\n");
 }
 
 module_init(rh_module_init);
