@@ -242,8 +242,9 @@ MODULE_PARM_DESC(delay,
 static unsigned long delay_in_atomic = 0;
 module_param(delay_in_atomic, ulong, S_IRUGO);
 MODULE_PARM_DESC(delay_in_atomic,
-	"If non-zero, this value will be used in atomic context "
-	"instead of 'delay'.");
+	"How long to delay execution of an instruction in an atomic context "
+	"waiting for the conflicting memory accesses (in milliseconds). "
+	"If 0, the delay of 5000/HZ ms (5 jiffies) will be used.");
 /* ====================================================================== */
 
 /* If RaceHound is about to unload, it will wait till its software BPs are
@@ -2981,7 +2982,7 @@ rh_module_init(void)
 		delay = jiffies_to_msecs(5);
 
 	if (delay_in_atomic == 0)
-		delay_in_atomic = delay;
+		delay_in_atomic = jiffies_to_msecs(5);
 
 	/* Keep this first: the following calls may need the API it finds.*/
 	ret = find_kernel_api();

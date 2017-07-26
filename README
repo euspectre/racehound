@@ -157,12 +157,10 @@ locations in test_module:
   insmod /usr/local/lib/modules/$(uname -r)/misc/racehound.ko [delay=...]
 
 You can optionally specify how long to delay execution of the instructions
-to check for the conflicting memory accesses. "delay" parameter of
-"racehound" kernel module can be used for that. The value is in milliseconds.
-The default is about 5000/HZ (5 jiffies).
-
-If you would like to use a different delay for atomic context, please
-specify it in "delay_in_atomic" parameter.
+to check for the conflicting memory accesses in the process context and
+in atomic context. "delay" and "delay_in_atomic" parameters of "racehound"
+module can be used for that. The value is in milliseconds. The default
+values are 5000/HZ ms (5 jiffies).
 
 3. Instruct RaceHound to monitor the given instructions (as root).
 
