@@ -93,6 +93,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/stacktrace.h>
 #include <linux/circ_buf.h>
+#include <linux/hash.h>
 
 #include <generated/utsrelease.h>
 
