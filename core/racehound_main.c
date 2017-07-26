@@ -3043,7 +3043,8 @@ rh_module_init(void)
 	bps_enabled = true;
 	mutex_unlock(&swbp_mutex);
 
-	pr_info(RH_MSG_PREFIX "RaceHound has been loaded.\n");
+	pr_info(RH_MSG_PREFIX
+		RH_PACKAGE_NAME " version " RH_PACKAGE_VERSION " loaded.\n");
 	return 0;
 
 out_unreg_module:
