@@ -247,7 +247,7 @@ if __name__ == '__main__':
                         # some hit events for it after that, because the
                         # events are reported asynchronously by the kernel
                         # module. Let us ignore these additional events.
-                        if bps[bp]:
+                        if bp in bps and bps[bp]:
                             if verbose:
                                 print('BP hit:', bp)
                             hits = hits + 1
