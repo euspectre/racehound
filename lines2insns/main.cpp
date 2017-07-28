@@ -174,7 +174,6 @@ static bool
 extract_kmodule_name()
 {
 	static string kernel_image = "vmlinu";
-	static string suffix = ".ko";
 
 	/* basename() needs a string that can be changed. */
 	char *str = strdup(kmodule_path.c_str());
@@ -191,16 +190,9 @@ extract_kmodule_name()
 		return true;
 	}
 
-	if (kmodule_file.size() <= suffix.size() ||
-	    kmodule_file.substr(
-		    kmodule_file.size() - suffix.size()) != suffix) {
-		cerr << "Invalid name of the kernel module: \""
-			<< kmodule_file << "\"." << endl;
-		return false;
-	}
-
-	kmodule_name = kmodule_file.substr(
-		0, kmodule_file.size() - suffix.size());
+	/* Get the module name w/o any extensions. */
+	size_t pos = kmodule_file.find_first_of(".");
+	kmodule_name = kmodule_file.substr(0, pos);
 
 	/* Within the kernel, all modules have dashes replaced with
 	 * underscores in their names. */
