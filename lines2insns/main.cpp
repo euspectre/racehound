@@ -885,7 +885,13 @@ find_insns(Elf *e, string src_file, int line, EAccessType at)
 		Elf_Data *data = NULL;
 		bool found = false;
 		while ((data = elf_getdata(scn, data)) != NULL) {
-			assert(data->d_buf != NULL);
+			if(!data->d_buf) {
+				ostringstream err;
+				err << "There is no code in section \""
+					<< sec.name
+					<< "\" in the binary file.";
+				throw runtime_error(err.str());
+			}
 
 			if (offset < (unsigned int)data->d_off ||
 			    offset >= (unsigned int)(data->d_off +
