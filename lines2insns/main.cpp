@@ -1050,16 +1050,16 @@ convert_to_section_offset(const string &str_line, const string &area,
 
 	if (is_kernel_image()) {
 		if (is_init) {
-			throw runtime_error(
-"Processing the \"init\" area of the kernel image is not supported.");
+			cerr <<
+"Processing the \"init\" area of the kernel image is not supported." << endl;
+			return;
 		}
 
 		const SectionInfo &si = sections[text_idx];
 		if (offset >= si.sh_size) {
-			ostringstream err;
-			err << str_line
-	<< ": the offset is not within the .text section of the kernel.";
-			throw runtime_error(err.str());
+			cerr << str_line <<
+": the offset is not within the .text section of the kernel." << endl;
+			return;
 		}
 
 		cout << ".text+0x" << hex << offset << dec << "\n";
