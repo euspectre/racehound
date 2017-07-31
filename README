@@ -132,6 +132,12 @@ specify this as well:
   $ echo "something.c:84:write" | lines2insns test_module.ko
   test_module:core+0x251
 
+If the debug info for test_module.ko is in a separate file, say,
+test_module.ko.debug, please specify both:
+
+  $ echo "something.c:84:write" | lines2insns test_module.ko test_module.ko.debug
+  test_module:core+0x251
+
 If you know the ELF sections and the offsets there for the instructions of
 interest, lines2insns can convert that to the proper format too:
   $ echo "test_module:.text+0x251" | lines2insns --section-to-area test_module.ko

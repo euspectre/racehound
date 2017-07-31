@@ -53,10 +53,14 @@
  "Execute \'" APP_NAME " --help\' for more information.\n\n"
 
 #define APP_HELP \
- APP_NAME " [options] <module_file_with_debug_info>\n\n" \
+ APP_NAME " [options] <module_file> [debug_info_file]\n\n" \
  APP_NAME " reads the list of source locations for a kernel or a given\n" \
  "kernel module from stdin and outputs the list of machine instructions\n" \
  "corresponding to these locations that may access memory to stdout.\n\n" \
+ "" \
+ "If the debug info for a kernel module is kept in a separate file,\n" \
+ "two files should be specified: the first one should contain the code\n" \
+ "of the module and the second one - the debug info for it.\n\n" \
  "" \
  "Each input line must have the following format:\n\n" \
  "<path_to_source_file>:<line_no>[:{read|write}]\n\n" \
@@ -66,9 +70,7 @@
  "test.c:144\n" \
  "test2/test2.c:55:write\n\n" \
  "" \
- APP_NAME " reads the list of sections and debug info from the given\n" \
- "<module_file_with_debug_info> (it may be *.ko file for a kernel module\n" \
- "or vmlinu* for the kernel proper).\n" \
+ APP_NAME " reads the list of sections and debug info from the given file.\n" \
  "" \
  "The tool outputs the list of the corresponding machine instructions\n" \
  "in the following format, one per line:\n\n" \
@@ -85,7 +87,7 @@
  "kernel proper or the built-in modules.\n\n" \
  "" \
  "Example:\n\n" \
- "$ echo 'my-driver/main.c:126' | " APP_NAME " my-driver.ko\n" \
+ "$ echo 'my-driver/main.c:126' | " APP_NAME " my-driver.ko my-driver.ko.debug\n" \
  "my_driver:core+0x568\n" \
  "my_driver:core+0x575\n\n" \
  "" \
@@ -148,6 +150,8 @@ is_kernel_image()
 
 /* The path to the module's file specified by the user. */
 static string kmodule_path;
+/* The path to the file containing the debug info. */
+static string dbg_path;
 /* ====================================================================== */
 
 /* Same as strstarts() from the kernel. */
@@ -276,6 +280,12 @@ process_args(int argc, char *argv[])
 	}
 
 	kmodule_path = argv[optind];
+	if (optind + 1 < argc) {
+		dbg_path = argv[optind + 1];
+	}
+	else {
+		dbg_path = kmodule_path;
+	}
 	return extract_kmodule_name();
 }
 /* ====================================================================== */
@@ -351,6 +361,49 @@ public:
 };
 
 DwflWrapper wr_dwfl;
+
+/* A wrapper around the ELF object with the code that closes the handle
+ * when destroyed. */
+class ElfWrapper
+{
+public:
+	int fd;
+	Elf *e;
+public:
+	ElfWrapper(const string &path) {
+		errno = 0;
+		fd = open(path.c_str(), O_RDONLY, 0);
+		if (fd == -1) {
+			ostringstream err;
+			err << "Failed to open \"" << path << "\": " <<
+				strerror(errno) << endl;
+			throw runtime_error(err.str());
+		}
+
+		e = elf_begin(fd, ELF_C_READ, NULL);
+		if (e == NULL) {
+			close(fd);
+			ostringstream err;
+			err << "elf_begin() failed for " << path << ": " <<
+				elf_errmsg(-1) << endl;
+			throw runtime_error(err.str());
+		}
+
+		if (elf_kind(e) != ELF_K_ELF) {
+			elf_end(e);
+			close(fd);
+			throw runtime_error(
+				string("Not an ELF object file: ") + path);
+		}
+	}
+
+	~ElfWrapper() {
+		elf_end(e);
+		close(fd);
+	}
+private:
+	ElfWrapper(); /* Prohibit the use of the default ctor. */
+};
 /* ====================================================================== */
 
 struct InsnInfo
@@ -425,13 +478,13 @@ do_load_dwarf_info(int fd)
 
 	wr_dwfl.dwfl_mod = my_dwfl_report_elf(
 		wr_dwfl.get_handle(), kmodule_name.c_str(),
-		kmodule_path.c_str(), dwfl_fd, 0 /* base address */);
+		dbg_path.c_str(), dwfl_fd, 0 /* base address */);
 
 	if (wr_dwfl.dwfl_mod == NULL) {
 		/* Not always an error but worth notifying the user.
 		 * Missing debug info, perhaps? */
 		cerr << "No debug info is present in or can be loaded from "
-			<< kmodule_path << ". " << dwfl_errmsg(-1) << endl;
+			<< dbg_path << ". " << dwfl_errmsg(-1) << endl;
 		close(dwfl_fd);
 		return;
 	}
@@ -449,49 +502,58 @@ do_load_dwarf_info(int fd)
 static void
 load_dwarf_info()
 {
-	int fd;
-	Elf *e;
-	Elf_Kind ek;
-
-	errno = 0;
-	fd = open(kmodule_path.c_str(), O_RDONLY, 0);
-	if (fd == -1) {
-		ostringstream err;
-		err << "Failed to open \"" << kmodule_path << "\": " <<
-			strerror(errno) << endl;
-		throw runtime_error(err.str());
-	}
-
-	e = elf_begin(fd, ELF_C_READ, NULL);
-	if (e == NULL) {
-		close(fd);
-		ostringstream err;
-		err << "elf_begin() failed for " << kmodule_path << ": " <<
-			elf_errmsg(-1) << endl;
-		throw runtime_error(err.str());
-	}
-
-	ek = elf_kind(e);
-	if (ek != ELF_K_ELF) {
-		elf_end(e);
-		close(fd);
-		throw runtime_error(
-			string("Not an ELF object file: ") + kmodule_path);
-	}
-
-	try {
-		do_load_dwarf_info(fd);
-	}
-	catch (runtime_error &err) {
-		elf_end(e);
-		close(fd);
-		throw;
-	}
-
-	elf_end(e);
-	close(fd);
+	ElfWrapper wr_elf(dbg_path);
+	do_load_dwarf_info(wr_elf.fd);
 }
 /* ====================================================================== */
+
+/* Obtain the virtual address of the given section from the file with
+ * the debug info. We cannot just use the sh_addr from the ELF file with
+ * the code: the file with debug info may have it relocated in a special
+ * way. We need that relocated value to query the debug info and looking
+ * for the relevant binary code. */
+static GElf_Addr
+get_dw_sh_addr(const string &sh_name)
+{
+	Elf *e = wr_dwfl.e;
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	size_t sh_str_index;
+	char *name;
+
+	if (elf_getshdrstrndx(e, &sh_str_index) != 0) {
+		ostringstream err;
+		err << "elf_getshdrstrndx() failed: " << elf_errmsg(-1);
+		throw runtime_error(err.str());
+	}
+
+	scn = NULL;
+	while ((scn = elf_nextscn(e, scn)) != NULL) {
+		if (gelf_getshdr(scn, &shdr) != &shdr) {
+			ostringstream err;
+			err << "Failed to retrieve section header: "
+				<< elf_errmsg(-1);
+			throw runtime_error(err.str());
+		}
+
+		name = elf_strptr(e, sh_str_index, shdr.sh_name);
+		if (name == NULL) {
+			ostringstream err;
+			err << "Failed to retrieve section name: "
+				<< elf_errmsg(-1);
+			throw runtime_error(err.str());
+		}
+
+		if (sh_name != name)
+			continue;
+
+		return shdr.sh_addr;
+	}
+
+	cerr << "Failed to find the virtual address of the section "
+	     << sh_name << ", assuming 0." << endl;
+	return 0;
+}
 
 static void
 process_elf_sections(Elf *e)
@@ -577,7 +639,7 @@ process_elf_sections(Elf *e)
 		if (sections[idx].name == ".text")
 			text_idx = idx;
 
-		sections[idx].sh_addr = shdr.sh_addr;
+		sections[idx].sh_addr = get_dw_sh_addr(sections[idx].name);
 		sections[idx].sh_size = (unsigned int)shdr.sh_size;
 
 		if (verbose) {
@@ -1190,17 +1252,19 @@ main(int argc, char *argv[])
 		cerr << "Turn off filtering: " << no_filter << endl;
 		cerr << "With stack: " << with_stack << endl;
 		cerr << "With locked: " << with_locked << endl;
-		cerr << "Module path: " << kmodule_path << endl;
+		cerr << "Module: " << kmodule_path << endl;
+		cerr << "File with debug info: " << dbg_path << endl;
 		cerr << "Is kernel image? " << is_kernel_image() << endl;
 		cerr << "Module name: " << kmodule_name << endl;
 	}
 
 	try {
+		ElfWrapper wr_elf(kmodule_path);
 		load_dwarf_info();
 
-		/* [NB] Below, we need the Elf object from the dwfl module
-		 * because it has set virtual addresses for the sections
-		 * (sh_addr) appropriately.
+		/* We need both the Elf object for the file with the code and
+		 * the one from the dwfl module. The latter has set virtual
+		 * addresses for the sections (sh_addr) appropriately.
 		 * We cannot reopen the binary and use its Elf object:
 		 * sh_addr will be 0. This way we can miss some insns,
 		 * because sh_addr is needed when looking for all the insns
@@ -1208,7 +1272,7 @@ main(int argc, char *argv[])
 
 		/* Find which area each section belongs to and what offset
 		 * the section has there. Populate 'sections' map. */
-		process_elf_sections(wr_dwfl.e);
+		process_elf_sections(wr_elf.e);
 
 		if (section_to_area || area_to_section) {
 			do_convert();
@@ -1217,7 +1281,7 @@ main(int argc, char *argv[])
 		else {
 			/* Normal mode. Process the input, populate and
 			 * filter the sets of instructions of interest. */
-			process_input(wr_dwfl.e);
+			process_input(wr_elf.e);
 		}
 
 		/* Output the results, sorted by offset, init area first. */
