@@ -1214,10 +1214,12 @@ do_convert()
 		}
 
 		if (module_name != kmodule_name) {
-			ostringstream err;
-			err << "Mismatching name of the module (\""
-				<< module_name << "\") in " << str;
-			throw runtime_error(err.str());
+			if (verbose) {
+				cerr << "Mismatching name of the module (\""
+					<< module_name << "\") in "
+					<< str << endl;
+			}
+			continue;
 		}
 
 		if (section_to_area)
