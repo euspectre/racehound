@@ -2215,6 +2215,15 @@ queue_rr_race_report(unsigned long ip, unsigned long addr, unsigned int size)
 	queue_work(wq, &race->work);
 }
 
+static bool
+is_jiffies_addr(unsigned long addr)
+{
+	unsigned long start = (unsigned long)&jiffies;
+	unsigned long end = start + sizeof(jiffies);
+
+	return (addr >= start && addr < end);
+}
+
 /* The "lite" pre-handler. Executes before the insn of interest in the same
  * conditions as that insn (IRQ enabled/disabled, etc.) except the
  * preemption is disabled by the Kprobe.
@@ -2256,6 +2265,10 @@ rh_do_before_insn(void)
 		/* No access, actually, or an access to the stack. */
 		goto out;
 	}
+
+	/* Not interested in the races on 'jiffies'. */
+	if (is_jiffies_addr((unsigned long)mi.addr))
+		goto out;
 
 	/* Save the data in the memory area the insn is about to access.
 	 * We will check later if they change (the "repeated read check").
