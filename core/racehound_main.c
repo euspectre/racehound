@@ -599,7 +599,8 @@ report_race(const struct rh_race *race)
 		(void *)race->addr, race->size);
 	pr_warning(RH_MSG_PREFIX "----- Thread #1, comm: %s ----- \n",
 		   race->comm0);
-	pr_warning(RH_MSG_PREFIX "IP: %pS\n", (void *)race->ip0);
+	pr_warning(RH_MSG_PREFIX "IP: [<%p>] %pS\n",
+		   (void *)race->ip0, (void *)race->ip0);
 	print_stack_trace(&trace0, 0);
 
 	if (got_both_threads) {
@@ -610,8 +611,8 @@ report_race(const struct rh_race *race)
 		pr_warning(RH_MSG_PREFIX
 			   "----- Thread #2, comm: %s ----- \n",
 			   race->comm1);
-		pr_warning(RH_MSG_PREFIX "IP: right before %pS\n",
-			   (void *)race->ip1);
+		pr_warning(RH_MSG_PREFIX "IP: right before [<%p>] %pS\n",
+			   (void *)race->ip1, (void *)race->ip1);
 		print_stack_trace(&trace1, 0);
 	}
 	else {
