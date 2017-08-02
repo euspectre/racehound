@@ -201,21 +201,33 @@ to /sys/kernel/debug/racehound/breakpoints but with '-' prepended. Example:
 5. If RaceHound detects a race, it will output something like this to the
 system log (see dmesg):
 
-  [rh] Detected a data race on the memory block at ffffffffa09b936c
-  between the instruction at test_module:core+0x22f (comm: "sh")
-  and the instruction right before my_func+0x18/0x20 [test_module] (comm: "sh").
+  [rh] Detected a data race on the the memory block at ffffffffc04c1454, size 4:
+  [rh] ----- Thread #1, comm: sh -----
+  [rh] IP: hello_plus+0x43/0x60 [test_simple]
+    hello_device_write+0x5b/0x70 [test_simple]
+    full_proxy_write+0x54/0x90
+    __vfs_write+0x37/0x160
+    vfs_write+0xb5/0x1a0
+    SyS_write+0x55/0xc0
+    entry_SYSCALL_64_fastpath+0x1a/0xa9
 
-or
-
-  [rh] Detected a data race on the memory block at ffffffffa09b936c
-  that is about to be accessed by the instruction at
-  test_module:core+0x251 (comm: "sh"):
-  the memory block was modified during the delay.
+  [rh] ----- Thread #2, comm: sh -----
+  [rh] IP: right before hello_minus+0x18/0x20 [test_simple]
+    hello_minus+0x18/0x20 [test_simple]
+    hello_device_write+0x3d/0x70 [test_simple]
+    full_proxy_write+0x54/0x90
+    __vfs_write+0x37/0x160
+    vfs_write+0xb5/0x1a0
+    SyS_write+0x55/0xc0
+    entry_SYSCALL_64_fastpath+0x1a/0xa9
 
 If the race is detected only because the memory area has been modified
 during the delay, RaceHound, obviously, has no idea which code has done that
-modification. On the other hand, the hardware breakpoints report the both
-involved parties.
+modification. It will output information only about the thread it knows in
+that case.
+
+If the same race (same conflicting instructions with the same call traces)
+happens 2 times or more, RaceHound will only output its first occurrence.
 
 6. If "test_module" is built with debug info, you can use addr2line or a
 similar tool to find the source lines for the conflicting access
