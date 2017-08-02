@@ -174,6 +174,7 @@ macro(check_kernel_config)
 				"\tCONFIG_SYSFS (sysfs support)\n"
 				"\tCONFIG_DEBUG_FS (debugfs support)\n"
 				"\tCONFIG_KALLSYMS (loading of kernel symbols in the kernel image)\n"
+				"\tCONFIG_PREEMPT_COUNT\n"
 			)
 		endif (kernel_config_impl)
 	endif (DEFINED KERNEL_CONFIG_OK) # TODO

@@ -39,6 +39,12 @@ MODULE_LICENSE("GPL");
 	(CONFIG_KALLSYMS is not set in the kernel config file).
 #endif
 
+#if !defined(CONFIG_PREEMPT_COUNT)
+#error CONFIG_PREEMPT_COUNT is needed: RaceHound relies on in_atomic() \
+	in some situations but in_atomic() always returns false \
+	if CONFIG_PREEMPT_COUNT is not set.
+#endif
+
 /* The rest of the code does not really matter as long as it is correct 
  * from the compiler's point of view. */
 static int __init
