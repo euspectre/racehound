@@ -44,6 +44,11 @@ during the delay. Might help detect races that were not caught above.
 The found races are reported to the system log and to racehound/events file
 in debugfs.
 
+For the present, RaceHound can only monitor the instructions executing in
+process context. So, no IRQ, SoftIRQ, NMI, etc. It can still detect races
+where one of the conflicting instruction works in the process context
+(a software breakpoint is placed there) while another one executes in, say,
+IRQ or SoftIRQ and is caught by a hardware breakpoint.
 
 # Build prerequisites
 --------------
@@ -75,6 +80,9 @@ To install RaceHound, you can now execute "make install" as root.
 Note that RaceHound is installed for the current kernel only. If you update
 or otherwise change the kernel, please rebuild RaceHound and install it
 again.
+
+Alternatively, you can skip "make install" step and use RaceHound directly
+from its build directory.
 
 # Self-tests (optional)
 --------------
@@ -110,8 +118,7 @@ areas instead.
 
 "delay" can be used to set the length of the delay for the given monitored
 instruction when a software breakpoint hits. If it is not specified, "delay"
-parameter of "racehound" kernel module will be used (or "delay_in_atomic"
-in atomic context, if set). The value is in milliseconds.
+parameter of "racehound" kernel module will be used. The value is in milliseconds.
 
 lines2insns tool from this project can help prepare the location strings in
 the correct format.
@@ -164,9 +171,8 @@ locations in test_module:
 
 You can optionally specify how long to delay execution of the instructions
 to check for the conflicting memory accesses in the process context and
-in atomic context. "delay" and "delay_in_atomic" parameters of "racehound"
-module can be used for that. The value is in milliseconds. The default
-values are 5000/HZ ms (5 jiffies).
+in atomic context. "delay" parameter of "racehound" module can be used
+for that. The value is in milliseconds. The default is 5000/HZ ms (5 jiffies).
 
 3. Instruct RaceHound to monitor the given instructions (as root).
 
@@ -240,8 +246,8 @@ kernel components are still loaded then, RaceHound will automatically
 Notes and tips
 
 * If the kernel is built with CONFIG_PREEMPT=y, it may help make the system
-more responsive when using RaceHound. Especially, - if you use the delays in
-seconds or longer.
+more responsive when using RaceHound. Especially, - if you use the delays of
+100 ms or longer.
 
 * There are only 4 hardware breakpoints available on an x86 CPU, so monitoring
 too many instructions that execute often may be pointless. The exact values

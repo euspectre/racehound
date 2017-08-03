@@ -155,6 +155,16 @@ static struct rh_race *race_table[RH_RACE_HASH_SIZE];
  * of that file provided by the kernel is likely to take precedence.
  */
 void depot_cleanup(void);
+
+/*
+ * in_task() was introduced in the mainline commit
+ * 7c4788950ba5 "x86/uaccess, sched/preempt: Verify access_ok() context",
+ * which went into kernel 4.10.
+ */
+#if !defined(in_task)
+#define in_task()	(!(preempt_count() & \
+			   (NMI_MASK | HARDIRQ_MASK | SOFTIRQ_OFFSET)))
+#endif
 /* ====================================================================== */
 
 #if defined(KPROBE_INSN_SLOT_SIZE)
@@ -237,13 +247,6 @@ static unsigned long delay = 0;
 module_param(delay, ulong, S_IRUGO);
 MODULE_PARM_DESC(delay,
 	"How long to delay execution of an instruction "
-	"waiting for the conflicting memory accesses (in milliseconds). "
-	"If 0, the delay of 5000/HZ ms (5 jiffies) will be used.");
-
-static unsigned long delay_in_atomic = 0;
-module_param(delay_in_atomic, ulong, S_IRUGO);
-MODULE_PARM_DESC(delay_in_atomic,
-	"How long to delay execution of an instruction in an atomic context "
 	"waiting for the conflicting memory accesses (in milliseconds). "
 	"If 0, the delay of 5000/HZ ms (5 jiffies) will be used.");
 /* ====================================================================== */
@@ -361,7 +364,7 @@ struct swbp
 	unsigned int offset;
 
 	/* If non-zero, this value will be used as a delay rather than the
-	 * module parameters 'delay' or 'delay_in_atomic'. */
+	 * module parameter 'delay'. */
 	unsigned long delay;
 
 	/* A string represenation of this BP - for error reporting, etc. */
@@ -2244,19 +2247,31 @@ rh_do_before_insn(void)
 	int access_type;
 	u8 data[RH_MAX_REP_READ_SIZE];
 	size_t nbytes_to_check;
-	int race_found;
+	int race_found = 0;
 	unsigned long actual_delay = swbp_hit->swbp->delay;
 
-	/* Let the user space know the SW BP was hit and processed. */
+	if (!actual_delay)
+		actual_delay = delay;
+
+	/*
+	 * Let the user space know the SW BP was hit, no matter if we
+	 * process it or skip it.
+	 */
 	report_swbp_hit_event(&events, swbp_to_string(swbp_hit->swbp));
 
-	if (!actual_delay)
-		actual_delay = (in_atomic() ? delay_in_atomic : delay);
+	/* Do not meddle with IRQ, NMI, SoftIRQ right now. */
+	if (!in_task()) {
+		pr_debug(RH_MSG_PREFIX
+"SW BP %s was hit in a non-task context (preempt_count: %x).\n",
+			 swbp_to_string(swbp_hit->swbp),
+			 (unsigned int)preempt_count());
+		goto out;
+	}
 
 	ret = rh_fill_ma_info(&mi, swbp_hit->swbp->rh_insn, &swbp_hit->regs,
 			      swbp_hit->swbp->base_size);
 	if (ret) {
-		pr_warning(RH_MSG_PREFIX ""
+		pr_warning(RH_MSG_PREFIX
 "Failed to find the address of the memory area the insn will access.\n");
 		goto out;
 	}
@@ -2995,9 +3010,6 @@ rh_module_init(void)
 
 	if (delay == 0)
 		delay = jiffies_to_msecs(5);
-
-	if (delay_in_atomic == 0)
-		delay_in_atomic = jiffies_to_msecs(5);
 
 	/* Keep this first: the following calls may need the API it finds.*/
 	ret = find_kernel_api();
