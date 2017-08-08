@@ -21,7 +21,7 @@ set(RH_PACKAGE_NAME "RaceHound")
 set(RH_VERSION_MAJOR 1)
 set(RH_VERSION_MINOR 4)
 
-set(RH_PACKAGE_VERSION "${RH_VERSION_MAJOR}.${RH_VERSION_MINOR}-devel")
+set(RH_PACKAGE_VERSION "${RH_VERSION_MAJOR}.${RH_VERSION_MINOR}")
 #######################################################################
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8) 
